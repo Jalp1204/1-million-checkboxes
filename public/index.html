@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1 MILLION CHECKBOXES-WS</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <h1>1 MILLION CHECKBOXES-WS</h1>
+    <div id="container">
+        <script>
+            const container= document.getElementById('container');
+            const checkbox_ct=1000;
+
+            new Array(checkbox_ct).fill(null).forEach((_,index)=>{
+                const input= document.createElement('input');
+                input.type='checkbox';
+                container.appendChild(input);
+            })
+        </script>
+    </div>
+</body>
+</html>
