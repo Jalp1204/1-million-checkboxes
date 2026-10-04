@@ -4,13 +4,11 @@ import path from "node:path";
 import express from "express"
 import { Server } from "socket.io";
 
-import { publisher , subscriber } from "./redis-connection.js"; 
-import { channel } from "node:diagnostics_channel";
+import { publisher , redis, subscriber } from "./redis-connection.js"; 
+
 
 const checkbox_ct=1000;
-const state={
-    checkboxes: new Array(checkbox_ct).fill(false)
-}
+const checkbox_state_key='checkbox-state';
 
 async function main() {
     const PORT= process.env.PORT ?? 8000;
@@ -24,7 +22,6 @@ async function main() {
     subscriber.on('message', (channel,message)=>{
         if(channel==='internal-server:checkbox:change'){
             const {index,checked} = JSON.parse(message);
-            state.checkboxes[index]=checked;
             io.emit('server:checkbox:change', {index,checked});
         }
     })
@@ -35,7 +32,28 @@ async function main() {
 
         socket.on('client:checkbox:change' , async (data)=>{
             console.log(`socket${socket.id}:client:checkbox:change`, data);
-            await publisher.publish('internal-server:checkbox:change', JSON.stringify(data));
+
+            const existing_state = await redis.get(checkbox_state_key);
+            
+            let remoteData;
+
+            if(existing_state){
+                remoteData = JSON.parse(existing_state);
+            }
+            else{
+                 remoteData = new Array(checkbox_ct).fill(false);
+            };
+            remoteData[data.index]=data.checked;
+
+            await redis.set(
+            checkbox_state_key,
+            JSON.stringify(remoteData)
+            );
+
+            await publisher.publish(
+            'internal-server:checkbox:change',
+            JSON.stringify(data)
+            );
         });
         socket.on("disconnect", () => {
         console.log("Client disconnected:", socket.id);
@@ -46,8 +64,14 @@ async function main() {
     app.use(express.static(path.resolve('./public')));
     app.get('/health', (req,res) => res.json({healthy:true}));
 
-    app.get('/checkboxes', (req,res) => {
-        return res.json({checkboxes: state.checkboxes});
+    app.get('/checkboxes', async (req,res) => {
+        const existing_state = await redis.get(checkbox_state_key);
+        if(existing_state){
+            const remoteData = JSON.parse(existing_state);
+            return res.json({checkboxes: remoteData});
+        }else{
+            return res.json({checkboxes: new Array(checkbox_ct).fill(false)});
+        }    
     })
 
 
